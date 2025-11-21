@@ -2,8 +2,10 @@ import pygame
 import random
 
 pygame.init()
+all_enemys=20
 objects=[]
 bullets=[]
+spawners=[]
 TILE=32#??????????????????
 FPS=60
 DIRECTS=[[0,-1],[1,0],[0,1],[-1,0]]
@@ -14,12 +16,25 @@ size=(WIDTH,HEIGHT)
 clock=pygame.time.Clock()
 window=pygame.display.set_mode(size)
 
+#запуск музыки
+mix=pygame.mixer.init()
+pygame.mixer.music.load('Music/sna.mp3')
+pygame.mixer.music.play()
+
 fontUI=pygame.font.Font(None,30)
 
 
 imgBrick=pygame.image.load('Images/кирпич.png')
 imgHero=pygame.image.load('Images/герой.png')
 imgEnemy=pygame.image.load('Images/враг.png')
+imgExplodes=[
+    pygame.image.load('Images/взрывы/взрыв0.png'),
+    pygame.image.load('Images/взрывы/взрыв1.png'),
+    pygame.image.load('Images/взрывы/взрыв2.png'),
+    pygame.image.load('Images/взрывы/взрыв3.png'),
+    pygame.image.load('Images/взрывы/взрыв4.png'),
+]
+
 
 
 
@@ -36,16 +51,16 @@ class UI:
         window.blit(text,rect)
 
         #противники
-        enemy=[obj for obj in objects if obj!=self.hero_tank and obj.type=='tank']
+        #enemy=[obj for obj in objects if obj!=self.hero_tank and obj.type=='enemy_tank']
         pygame.draw.rect(window,'Red',(80,5,22,22))
-        text=fontUI.render(str(len(enemy)),1,'Red')
+        text=fontUI.render(str(all_enemys),1,'Red')
         rect=text.get_rect(center=(80+32,5+11))
         window.blit(text,rect)
 
 class Tank:
     def __init__(self,color,px,py,direct):
         objects.append(self)
-        self.type='tank'
+        self.type='hero_tank'
         self.color=color
         self.rect=pygame.Rect(px,py,TILE,TILE)
         self.direct=direct
@@ -67,28 +82,28 @@ class Tank:
     def update(self):
 
         self.image=pygame.transform.rotate(imgHero,-self.direct*90 - 270)
+        self.image=pygame.transform.scale(self.image,(self.image.get_width()-5,self.image.get_height()-5))
         self.rect=self.image.get_rect(center=self.rect.center)
 
         oldX,oldY=self.rect.topleft
 
         #управление танком
-        if keys[pygame.K_a]:
+        if keys[pygame.K_a] and self.rect.centerx>20:
             self.rect.x-=self.move_speed
             self.direct=3
-        elif keys[pygame.K_d]:
+        elif keys[pygame.K_d] and self.rect.centerx<size[0]-20:
             self.rect.x+=self.move_speed
             self.direct=1
-        elif keys[pygame.K_w]:
+        elif keys[pygame.K_w] and self.rect.centery>20:
             self.rect.y-=self.move_speed
             self.direct=0
-        elif keys[pygame.K_s]:
+        elif keys[pygame.K_s] and self.rect.centery<size[1]-20:
             self.rect.y+=self.move_speed
             self.direct=2    
 
         for obj in objects:
-            if obj!=self and self.rect.colliderect(obj.rect):
+            if obj!=self and (obj.type=='block' or obj.type=='enemy_tank') and self.rect.colliderect(obj.rect):
                 self.rect.topleft=oldX,oldY 
-
 
 
 
@@ -108,10 +123,10 @@ class Tank:
 
     def draw(self):
         
-        pygame.draw.rect(window,self.color,self.rect)
-        x=self.rect.centerx+DIRECTS[self.direct][0]*30
-        y=self.rect.centery+DIRECTS[self.direct][1]*30
-        pygame.draw.line(window,'white',self.rect.center,(x,y),4)
+        # pygame.draw.rect(window,self.color,self.rect)
+        # x=self.rect.centerx+DIRECTS[self.direct][0]*30
+        # y=self.rect.centery+DIRECTS[self.direct][1]*30
+        # pygame.draw.line(window,'white',self.rect.center,(x,y),4)
 
         window.blit(self.image,self.rect)
 
@@ -127,7 +142,7 @@ class Tank:
 class EnemyTank:
     def __init__(self,color,px,py,direct):
         objects.append(self)
-        self.type='tank'
+        self.type='enemy_tank'
         self.color=color
         self.rect=pygame.Rect(px,py,TILE,TILE)
         self.direct=direct
@@ -150,6 +165,9 @@ class EnemyTank:
         self.rndTimer=60
         self.rndDelay=30
 
+        self.image=pygame.transform.rotate(imgEnemy,-self.direct*90 - 90)
+        self.rect=self.image.get_rect(center=self.rect.center)
+
         
         
     def update(self):
@@ -158,6 +176,10 @@ class EnemyTank:
         #3-left
         #0-up
         #2-down
+
+        self.image=pygame.transform.rotate(imgEnemy,-self.direct*90-90)
+        self.image=pygame.transform.scale(self.image,(self.image.get_width()-5,self.image.get_height()-5))
+        self.rect=self.image.get_rect(center=self.rect.center)
 
         if self.rndPosition:
             oldX,oldY=self.rect.topleft
@@ -178,7 +200,7 @@ class EnemyTank:
                 self.rect.y+=self.move_speed
                 self.direct=2 
             for obj in objects:
-                if obj!=self and self.rect.colliderect(obj.rect):
+                if obj!=self and (obj.type=='block' or obj.type=='enemy_tank' or obj.type=='hero_tank') and self.rect.colliderect(obj.rect):
                     self.rect.topleft=oldX,oldY 
 
             self.rndTimer-=1
@@ -195,10 +217,12 @@ class EnemyTank:
         #self.heroPositionx,self.heroPositiony=objects[0].rect.centerx,objects[0].rect.centery
 
     def draw(self):
-        pygame.draw.rect(window,self.color,self.rect)
-        x=self.rect.centerx+DIRECTS[self.direct][0]*30
-        y=self.rect.centery+DIRECTS[self.direct][1]*30
-        pygame.draw.line(window,'white',self.rect.center,(x,y),4)
+        # pygame.draw.rect(window,self.color,self.rect)
+        # x=self.rect.centerx+DIRECTS[self.direct][0]*30
+        # y=self.rect.centery+DIRECTS[self.direct][1]*30
+        # pygame.draw.line(window,'white',self.rect.center,(x,y),4)
+
+        window.blit(self.image,self.rect)
 
     def damage(self,value):
         self.hp-=value
@@ -221,53 +245,121 @@ class Bullet:
             bullets.remove(self)
         else:
             for obj in objects:
-                if obj!=self.parent and obj.rect.collidepoint(self.px,self.py):
+                if obj!=self.parent and obj.type!='explode' and obj.rect.collidepoint(self.px,self.py) and obj.type!=self.parent.type:
                     obj.damage(self.damage)
                     bullets.remove(self)
+                    Explode(self.px,self.py)
                     break
 
     def draw(self):
         pygame.draw.circle(window,'yellow',(self.px,self.py),2)
 
 
+class Explode:
+    def __init__(self,px,py):
+        objects.append(self)
+        self.type='explode'
+        self.px,self.py=px,py
+        self.frame=0
+    def update(self):
+        self.frame+=0.2
+        if self.frame>4:
+            objects.remove(self)
+    def draw(self):
+        image=imgExplodes[int(self.frame)] 
+        image=pygame.transform.scale(image,(image.get_width()+30,image.get_height()+30)) 
+        rect=image.get_rect(center=(self.px,self.py))
+        window.blit(image,rect)
+
 class Block:
     def __init__(self,px,py,size):
         objects.append(self)
         self.type='block'
         self.rect=pygame.Rect(px,py,size,size)
-        self.hp=1
+        self.hp=2
     def update(self):
         pass
     def draw(self):
         #создание изображения
-        #window.blit(imgBrick,self.rect)
-        pygame.draw.rect(window,'green',self.rect)
-        pygame.draw.rect(window,'gray20',self.rect,2)
+        window.blit(imgBrick,self.rect)
+        # pygame.draw.rect(window,'green',self.rect)
+        # pygame.draw.rect(window,'gray20',self.rect,2)
 
     def damage(self,value):
         self.hp-=value
         if self.hp<=0:
             objects.remove(self)
 
+class EnemySpawner:
+    def __init__(self,px,py,max_count):
+        spawners.append(self)
+        self.px=px
+        self.py=py
+        self.max_count=max_count
+        self.tanks=[]
+
+        self.spawnTimer=300
+        self.spawnDelay=500
+
+    def update(self):
+        global all_enemys
+        if self.spawnTimer==0 and len(self.tanks)<self.max_count and all_enemys>0:
+            print(len(objects))
+            rect=pygame.Rect(self.px,self.py,64,64)
+            fined=False
+            for obj in objects:
+                if obj.type!='explode' and rect.colliderect(obj.rect):
+                    fined=True
+
+            if not(fined):
+                self.tanks.append(EnemyTank('Red',self.px,self.py,0))
+                self.spawnTimer=self.spawnDelay 
+                all_enemys-=1
+
+        for tank in self.tanks:
+            if tank not in objects:
+                self.tanks.remove(tank)       
+        if self.spawnTimer>0:
+            self.spawnTimer-=1
+
+        
+    def draw(self):
+        pass
+
 hero_tank=Tank('blue',100,275,0)
-EnemyTank('Red',650,275,0)
 ui=UI(hero_tank)
 
 #Создание стен
-for _ in range(200):
+for _ in range(300):
     while True:
-        x= random.randint(0,WIDTH//TILE-1) * TILE
-        y= random.randint(0,HEIGHT//TILE-1) * TILE
-        rect=pygame.Rect(x,y,TILE,TILE)
+        x= random.randint(0,WIDTH//TILE-1)*64
+        y= random.randint(0,HEIGHT//TILE-1) *64
+        rect=pygame.Rect(x,y,64,64)
         fined=False
         for obj in objects:
-            if not(rect.colliderect(obj.rect)):
-                fined=  True
-        if fined:
+            if rect.colliderect(obj.rect):
+                fined=True
+        if not fined:
             break
-    Block(x,y,TILE)
+    Block(x,y,64)
 
 
+#спавны
+for _ in range(3):
+    while True:
+        x= random.randint(0,WIDTH//64-1)*64
+        y= random.randint(0,HEIGHT//64-1) *64
+        rect=pygame.Rect(x,y,80,80)
+        fined=False
+        for obj in objects:
+            if rect.colliderect(obj.rect):
+                fined=True
+        if not fined:
+            break
+    EnemySpawner(x,y,max_count=3)
+
+# spawn1=EnemySpawner(512,0,max_count=3)
+# swawn2=EnemySpawner(1000,0,max_count=3)
 
 play=True
 while play:
@@ -281,11 +373,15 @@ while play:
     ui.update()
     for bullet in bullets:
         bullet.update()
+    for spawn in spawners:
+        spawn.update()
     window.fill('black')
     for obj in objects:
         obj.draw()
     for bullet in bullets:
         bullet.draw()
+    for spawn in spawners:
+        spawn.draw()
     ui.draw()
 
     pygame.display.update()
