@@ -3,7 +3,7 @@ import random
 import os
 
 pygame.init()
-all_enemys=5
+all_enemys=20
 objects=[]
 bullets=[]
 spawners=[]
@@ -26,6 +26,10 @@ mix=pygame.mixer.init()
 pygame.mixer.music.load('Music/sna.mp3')
 pygame.mixer.music.play()
 
+#звук выстрела
+shoot_sound = pygame.mixer.Sound('Music/выстрел.wav')
+shoot_enemy_sound = pygame.mixer.Sound('Music/выстрел_противника.wav')
+
 fontUI=pygame.font.Font(None,30)
 
 
@@ -40,11 +44,20 @@ imgExplodes=[
     pygame.image.load('Images/взрывы/взрыв4.png'),
 ]
 
+#победа
 imgWins=[os.path.join('Images/победа',img) for img in os.listdir('Images/победа')]
 imgWins.sort()
-
 win=False
 
+#поражение
+imgLose=[os.path.join('Images/поражение',img) for img in os.listdir('Images/поражение')]
+imgTextLose=[os.path.join('Images/поражение_текст',img) for img in os.listdir('Images/поражение_текст')]
+imgLose.sort()
+imgTextLose.sort()
+lose=False
+
+#спавнер
+imgSpawn=pygame.image.load('Images/спавнер0.png')
 
 #rct=pygame.Rect(100,275,(0,0))
 
@@ -72,11 +85,19 @@ win=False
 class UI:
     def __init__(self,hero_tank):
         self.hero_tank=hero_tank
-        self.frame=0
+        self.win_frame=0
+        self.lose_frame=0
+        self.lose_text_frame=0
     def update(self):
-        self.frame+=1
-        if self.frame>53:
-            self.frame=0
+        self.win_frame+=1
+        if self.win_frame>53:
+            self.win_frame=0
+        self.lose_frame+=1
+        if self.lose_frame>38:
+            self.lose_frame=0
+        self.lose_text_frame+=1
+        if self.lose_text_frame>4:
+            self.lose_text_frame=0
     def draw(self):
         #мой танк
         pygame.draw.rect(window,hero_tank.color,(5,5,22,22))
@@ -91,15 +112,23 @@ class UI:
         rect=text.get_rect(center=(80+32,5+11))
         window.blit(text,rect)
 
-        global imgWins
         if win:
             for i in range(53):
                 if i<10:
                     idx='0'+str(i)
                 else:
                     idx=str(i)
-                window.blit(pygame.image.load(imgWins[int(self.frame)]),(WIDTH//3,HEIGHT//3))
-                global objects
+                window.blit(pygame.image.load(imgWins[int(self.win_frame)]),((WIDTH//3),HEIGHT//3))
+                #global objects
+        if lose:
+            for i in range(38):
+                if i<10:
+                    idx='0'+str(i)
+                else:
+                    idx=str(i)
+                window.blit(pygame.image.load(imgLose[int(self.lose_frame)]),((WIDTH//3)+64,(HEIGHT//3)+64))
+                window.blit(pygame.image.load(imgTextLose[int(self.lose_text_frame)]),((WIDTH//3)-64,(HEIGHT//3)-32))
+                #global objects
                 
 
 
@@ -113,6 +142,7 @@ class Tank:
         self.move_speed=3
 
         self.hp=3
+        #self.hp=0
 
         self.shotTimer=0
         self.shotDelay=30
@@ -162,10 +192,13 @@ class Tank:
             dy=DIRECTS[self.direct][1]*30
             Bullet(self,self.rect.centerx,self.rect.centery,dx,dy,self.bullet_damage)
             self.shotTimer=self.shotDelay
+            shoot_sound.play()
 
 
         if self.shotTimer>0:
             self.shotTimer-=1
+
+
 
     def draw(self):
         
@@ -256,6 +289,7 @@ class EnemyTank:
             dy=DIRECTS[self.direct][1]*30
             Bullet(self,self.rect.centerx,self.rect.centery,dx,dy,self.bullet_damage)
             self.shotTimer=self.shotDelay
+            shoot_enemy_sound.play()
         if self.shotTimer>0:
             self.shotTimer-=1
         #else:
@@ -363,11 +397,26 @@ class EnemySpawner:
                 all_enemys-=1
 
         all_tanks=[tk for tk in objects if tk.type=='enemy_tank']
-        if all_enemys==0 and len(all_tanks)==0:
-            global win
+
+
+        global lose
+        global win
+        #условие победы
+        if all_enemys==0 and len(all_tanks)==0 and not(lose):
             win=True
             if hero_tank in objects:
                 objects.remove(hero_tank)
+
+        #условие поражения
+        if hero_tank.hp==0:
+            
+            lose=True
+            #print(lose)
+            for obj in objects:
+                if obj.type=='enemy_tank':
+                    objects.remove(obj)
+
+
 
         for tank in self.tanks:
             if tank not in objects:
@@ -377,7 +426,7 @@ class EnemySpawner:
 
         
     def draw(self):
-        pass
+        window.blit(imgSpawn,(self.px,self.py))
 
 hero_tank=Tank('blue',100,275,0)
 ui=UI(hero_tank)
@@ -398,10 +447,10 @@ for _ in range(300):
 
 
 #спавны
-for _ in range(3):
+for _ in range(5):
     while True:
-        x= random.randint(0,WIDTH//64-1)*64
-        y= random.randint(0,HEIGHT//64-1) *64
+        x= random.randint(0,(WIDTH-128)//70)*70
+        y= random.randint(0,(HEIGHT-128)//70) *70
         rect=pygame.Rect(x,y,80,80)
         fined=False
         for obj in objects:
@@ -430,12 +479,13 @@ while play:
         spawn.update()
     window.fill('black')
     
+    for spawn in spawners:
+        spawn.draw()
     for obj in objects:
         obj.draw()
     for bullet in bullets:
         bullet.draw()
-    for spawn in spawners:
-        spawn.draw()
+
     ui.draw()
 
     pygame.display.update()
